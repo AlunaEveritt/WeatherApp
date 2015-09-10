@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>ShapeClip | Image Loader</title>
+		
+		<!-- Styling -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0,user-scalable=no" />
+		
+		<style>
+			document, body { background-color: black; color: white; } 
+			.sc_pad { background-color: black; }
+		</style>
+		
+		<!-- Shape Clip -->
+		<script type="text/javascript" src="ShapeClipAPI.js"></script>
+		
+		<!-- bitmap Image Generator 
+		<script type="text/javascript" src="bitmapImageGenerator.js"></script>-->
+		
+		<!-- JQuery -->
+		<script type="text/javascript" src="jquery-2.1.0.min.js"></script>
+		
+		<link rel=StyleSheet href="StyleSheet.css" type="text/css">
+		
+		<!-- Weather Data JQuery -->
+		<!-- <script type="text/javascript" src="WeatherData.js"></script> -->
+		
+		
+		<script type="text/javascript">
+			
+			// LDR height thresholds.
+			var LDR_activation_threshold = 550;
+			// LDR colour thresholds.
+			var LDR_colour_activation = 950;
+			
+			// LED colour list: 
+			/**					Blue			Red			Green		Purple			Orange			Yellow			Pink   			Brown			White  */
+			var sc_colour = [[0, 0, 255], [255, 0, 0], [0, 255, 0], [128, 0, 128], [255, 165, 0], [255, 255, 0], [255, 105, 180], [139, 69, 19], [255, 255, 255]];
+			var LED_colour_id = 0;
+			
+			var canvasFrame = new canvasFrame();
+		
+			var comms = null;
+			var LDR_VALUE_STRING="";
+			var data_array = [];
+			var ip_address = "10.32.117.48"; /** CHANGE IP ADDRESS **/
+			var LOCKED = false;
+			var sc_heights=[];
+			var sc_colours=[];
+			
+			// Shape-clip index for height:
+			//var sc_height_info = 0;
+			// Shape-clip index for colour:
+			//var sc_colour_info = [];
+			
+			function getMappedShapeClipPosition(index) {
+				var sc_index=[];
+				switch(index) {
+					case 0:
+					sc_index = [0,0];
+					break;
+					case 1:
+					sc_index = [0,1];
+					break;
+					case 2:
+					sc_index = [0,2];
+					break;
+					case 3:
+					sc_index = [1,0];
+					break;
+					case 4:
+					sc_index = [1,1];
+					break;
+					case 5:
+					sc_index = [1,2];
+					break;
+					case 6:
+					sc_index = [2,0];
+					break;
+					case 7:
+					sc_index = [2,1];
+					break;
+					case 8:
+					sc_index = [2,2];
+					break;
+					default:
+						//do nothing;
+				}
+				return sc_index;
+			}
+			var LDR_INDEX = null;
+			var COLOUR_INDEX = 0;
+			var ldr_height = 0;
+			var REVERSE_MODE = false;
+			var COLOUR_MODE = false;
+			
+			var detectedTime=0;
+			var DETECTED=false;
+			var DETECTED_LDR = null;
+			var TIMER_ENABLED = false;
+			
+			
+			var colour_detectedTime=0;
+			var COLOUR_TIMER_DETECTED=false;
+			var DETECTED_COLOUR = null;
+			var COLOUR_TIMER_ENABLED = false;
+			
+			var COLOUR_POSITION=0;
+			
+			function logDetectedTime(ldr_index) {
+				if(DETECTED == false) {
+					detectedTime = getTimeInMilliseconds();
+					DETECTED = true;
+					TIMER_ENABLED=true;
+					detectReverse();
+				}
+			}
+			
+			function resetDetectedTime() {
+				DETECTED = false;
+				TIMER_ENABLED = false;
+			}
+			function resetDetectedColourTime() {
+				COLOUR_TIMER_DETECTED = false;
+				COLOUR_TIMER_ENABLED = false;
+			}
+			
+			function startColourTimer() {
+				if(COLOUR_TIMER_DETECTED == false) {
+					COLOUR_TIMER_DETECTED = true;
+					colour_detectedTime = getTimeInMilliseconds();
+					COLOUR_TIMER_ENABLED = true;
+					startColourCycle();
+				}
+			}
+			
+			function startColourCycle() {
+				var currentTime = getTimeInMilliseconds();
+				if(COLOUR_TIMER_DETECTED == true && parseInt(currentTime - colour_detectedTime) > 2000) {
+					//console.log("2 seconds in colour timer!");
+					COLOUR_POSITION++;
+					sc_colours[COLOUR_INDEX] = sc_colour[COLOUR_POSITION];
+					if(COLOUR_POSITION == 8) { COLOUR_POSITION = 0; }
+					resetDetectedColourTime();
+				}
+				else {
+					setTimeout(startColourCycle, 1000);
+				}
+			}
+			
+			
+			function detectReverse() {
+				if(TIMER_ENABLED == true) {
+					var currentTime = getTimeInMilliseconds();
+					if(DETECTED == true && parseInt(currentTime - detectedTime) > 2000) {
+						//console.log("2 seconds have passed");
+						REVERSE_MODE = true;
+						resetDetectedTime();
+					}
+					else {	setTimeout(detectReverse, 1000);
+					}
+				}
+			}
+			
+			function detectColourList(){
+				if(TIMER_ENABLED == true){
+					var currentTime = getTimeInMilliseconds();
+					if(DETECTED == true && parseInt(currentTime - detectedTime) > 4000) {
+						//console.log("4 seconds have passed");
+						COLOUR_MODE = true;
+						resetDetectedTime();
+					}
+					else { setTimeout(detectColourList, 1000); 
+					}
+				}
+			
+			}
+
+			// Try to connect to the websocket server.
+			initComms("WeatherApp", ip_address, 3000, function() {
+				console.log("Connected");
+				
+				for(var i=0; i<9; i++) {
+					sc_heights.push(0);
+					sc_colours.push([0,0,255]);
+				}
+				
+				// Send message to server letting it know who the client is, i.e. the weather application.
+				comms.emit("HelloMessage", "Hello I am the WeatherApp client");
+				
+				// When server broadcasts the LDR values, you get them here (the data variable).
+				comms.on("LDR_VALUES", function(data) {
+					
+					data_array = data.split(',');
+					
+					// Change hight of each pad.
+					var count = 0;
+					
+					data_array.map(function(val) {
+						// For height.
+						if(val < LDR_activation_threshold) {
+							//console.log("activating LDR " + count);
+							LDR_INDEX = count;
+							
+						}
+						// For colour.
+						if(val > LDR_colour_activation){
+							COLOUR_INDEX = count;
+						}
+						count++;
+					});
+					
+					
+					if(LDR_INDEX != null) {
+						if(data_array[LDR_INDEX] > LDR_activation_threshold && data_array[LDR_INDEX] < 700) {
+							if(sc_heights[LDR_INDEX] <= 1) {
+								resetDetectedTime();
+								REVERSE_MODE = false;
+								console.log("heights going up " + sc_heights[LDR_INDEX]);
+								var sc_indices = getMappedShapeClipPosition(LDR_INDEX);
+								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) + parseFloat(0.01);
+								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(3);
+								console.log(sc_heights[LDR_INDEX]);
+								//sc_indices_h = sc_heights[LDR_INDEX];
+							} 
+							else { }
+						} 
+						if(data_array[LDR_INDEX] < 500) {
+							logDetectedTime(LDR_INDEX);
+						}
+						console.log(REVERSE_MODE);
+						if(REVERSE_MODE == true) {
+							if(sc_heights[LDR_INDEX] >= 0) {
+								console.log("heights going down: " + sc_heights[LDR_INDEX]);
+								var sc_indices = getMappedShapeClipPosition(LDR_INDEX); 
+								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.01);
+								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(2);
+								console.log(sc_heights[LDR_INDEX]);
+								//sc_indices_h = sc_heights[LDR_INDEX];
+							} 
+							else { REVERSE_MODE = false; }
+						}
+					}
+					
+					if(COLOUR_INDEX != null){
+						if(data_array[COLOUR_INDEX] > LDR_colour_activation){
+							console.log("In colour mode");
+							var sc_indices = getMappedShapeClipPosition(COLOUR_INDEX);
+							startColourTimer(COLOUR_INDEX);
+							console.log(JSON.stringify(sc_colours));
+							pads[sc_indices[0]][sc_indices[1]].colour(sc_colours[COLOUR_INDEX]);
+							//sc_indices_c = sc_colour[COLOUR_POSITION];
+						}
+					}
+					
+					//data is the string with the LDR values.
+					LDR_VALUE_STRING = data;
+				});
+			});
+			
+			
+			function canvasFrame() {
+				var colours=[];
+				var heights=[];
+				
+				this.saveColours=function(colourArray) {
+					colours.push(colourArray.slice(0));
+				}
+				this.saveHeights=function(heightArray) {
+					heights.push(heightArray.slice(0));
+				}
+				this.getColours=function() { return colours; }
+				this.getHeights=function() { return heights; }
+				this.reset=function() {
+					colours=[];
+					heights=[];
+				}
+			}
+			
+			function generateFrame() {
+				canvasFrame.saveColours(sc_colours);
+				canvasFrame.saveHeights(sc_heights);
+				var colorarray = canvasFrame.getColours();
+				console.log("Colours: "+ colorarray[0]);
+				console.log("Heights: "+ canvasFrame.getHeights());
+			}
+			
+			/** - New Frame - **/
+			
+			var rgb_info = sc_colour[COLOUR_POSITION];
+			var string_colour = rgb_info.toString();
+			var pixelInfo = [];
+			
+			function saveFrame(){
+				
+				for (var row=0; row<pads.length; ++row){
+					for (var col=0; col<pads[row].length; ++col){
+						pixelInfo.push(sc_heights[LDR_INDEX], string_colour);
+					}
+				}
+				console.log(pixelInfo);
+				
+				//var canvas_colour_info = colourCanvas;
+				//document.write(pads[sc_indices_c[0]][sc_indices_c[1]].sc_colour[COLOUR_POSITION]);
+				//document.write(pads[sc_indices_h[0]][sc_indices_h[1]].sc_heights[LDR_INDEX]);
+				
+			};
+			
+			// Sorting height & colour;
+			var newAnimation = [];
+			
+			/** - New Animation - **/
+			/*function createNewAnimation(){
+				
+				// Create new log for new animation
+				// newAnimation array ->
+				
+				// Save each frame to newAnimation Array:
+			};*/
+			
+			
+			
+			/*** GENERATE BITMAP IMAGE ***/
+			
+			
+			
+			/** - Reading LDR values - **/
+			function initComms(clientID, server, study_port, onOpen) {
+				// Connect to the graph.
+				_CLIENT = clientID;
+				function connect() {
+					comms = io.connect("ws://" + server + ":" + study_port);
+					comms.on("connect", function(data) {
+						// Connection is successful.
+						console.log("Handshake Initiated");
+						onOpen();
+					});
+					comms.on("connect_error", function(err) {
+						// Fires when server disconnects AFTER connection had already been made
+						console.log("Connection Failed");
+					});
+				}
+				// Uses the socket script and tries to make a connection to the websocket server. 
+				// Automatically tries again if server doesn't respond, after 6 second timeout.
+				$.ajax({
+					url: 'http://'+server+':'+study_port+'/socket.io/socket.io.js',
+					dataType: "script",
+					timeout:6000,
+					success: function(data){ connect(); },
+					error:function(jqXHR, status, err) {
+						console.log("Error: cannot connect to socket.io");
+						initComms(clientID, study_port, onOpen); // try to reconnect after timeout
+					}
+				});
+			}
+			
+			/**
+			 * Settings for the application.
+			 */
+			var settings = {
+				NumClipsX  : 6,		// The number of clips across X.
+				NumClipsY  : 6,		// The number of clips across Y.
+				OffsetX    : 38,//15, //150,	// Offset from left of screen - 20 - 150.	
+				OffsetY    : 44, //20,		// Offset from top of screen - 25 - 40.
+				SpacingX   : 38, //22,	// Spacing between clips in X - 20 - 15.
+				SpacingY   : 35, //25,  // Spacing between clips in Y - 18 - 16.5.
+				ClipSize   : 20, //15,	// The size of a shapeclip in mm - 16 - 12.
+			};
+			
+			/**
+			 * Different content for the ShapeClip to display.
+			 */
+			var weather = {
+				"ClearSky" : {
+					"colourFiles" : ["images/ClearSky_colour.bmp"],
+					"heightFiles" : ["images/ClearSky_height.bmp"],
+					"animationSpeed" : -1, // -1 disables animation.
+				},
+				"FewClouds" : {
+					"colourFiles" : ["images/FewClouds_colour.bmp"],
+					"heightFiles" : ["images/FewClouds_height.bmp"],
+					"animationSpeed" : -1,
+				},
+				"ManyClouds"  : { 
+					"colourFiles" : ["images/ManyClouds_colour.bmp"],
+					"heightFiles" : ["images/ManyClouds_height.bmp"],
+					"animationSpeed" : -1,
+				},
+				"Rain" : {
+					"colourFiles" : ["images/Rain_colour.bmp"],
+					"heightFiles" : ["images/Rain_height.bmp"],		
+					"animationSpeed" : -1,					
+				},
+				"Wind_North" : {
+					"colourFiles" : ["wind_anim/Wind_anim_01.bmp"],
+					"heightFiles" : ["wind_anim/Wind_anim_01.bmp", 
+									 "wind_anim/Wind_anim_02.bmp", 
+									 "wind_anim/Wind_anim_03.bmp", 
+									 "wind_anim/Wind_anim_04.bmp", 
+									 "wind_anim/Wind_anim_05.bmp", 
+									 "wind_anim/Wind_anim_06.bmp", 
+									 "wind_anim/Wind_anim_07.bmp", 
+									 "wind_anim/Wind_anim_08.bmp", 
+									 "wind_anim/Wind_anim_09.bmp", 
+									 "wind_anim/Wind_anim_10.bmp", 
+									 "wind_anim/Wind_anim_11.bmp", 
+									 "wind_anim/Wind_anim_12.bmp", 
+									 "wind_anim/Wind_anim_13.bmp",
+									 "wind_anim/Wind_anim_14.bmp", 
+									 "wind_anim/Wind_anim_15.bmp", 
+									 "wind_anim/Wind_anim_16.bmp", 
+									 "wind_anim/Wind_anim_17.bmp", 
+								 	 "wind_anim/Wind_anim_18.bmp", 
+									 "wind_anim/Wind_anim_19.bmp",
+									 "wind_anim/Wind_anim_20.bmp", 
+									 "wind_anim/Wind_anim_21.bmp", 
+									 "wind_anim/Wind_anim_22.bmp", 
+									 "wind_anim/Wind_anim_23.bmp", 
+									 "wind_anim/Wind_anim_24.bmp", 
+									 "wind_anim/Wind_anim_25.bmp"],
+					"animationSpeed" : 500,	// 500ms per frame.
+				},
+				"Wind_East" : {
+					"colourFiles" : ["wind_anim_east/Wind_anim_01.bmp"],
+					"heightFiles" : ["wind_anim_east/Wind_anim_01.bmp", 
+									 "wind_anim_east/Wind_anim_02.bmp", 
+									 "wind_anim_east/Wind_anim_03.bmp", 
+									 "wind_anim_east/Wind_anim_04.bmp", 
+									 "wind_anim_east/Wind_anim_05.bmp", 
+									 "wind_anim_east/Wind_anim_06.bmp", 
+								 	 "wind_anim_east/Wind_anim_07.bmp", 
+									 "wind_anim_east/Wind_anim_08.bmp", 
+									 "wind_anim_east/Wind_anim_09.bmp", 
+									 "wind_anim_east/Wind_anim_10.bmp", 
+									 "wind_anim_east/Wind_anim_11.bmp", 
+									 "wind_anim_east/Wind_anim_12.bmp", 
+									 "wind_anim_east/Wind_anim_13.bmp",
+									 "wind_anim_east/Wind_anim_14.bmp", 
+									 "wind_anim_east/Wind_anim_15.bmp", 
+									 "wind_anim_east/Wind_anim_16.bmp", 
+									 "wind_anim_east/Wind_anim_17.bmp", 
+									 "wind_anim_east/Wind_anim_18.bmp", 
+									 "wind_anim_east/Wind_anim_19.bmp",
+								 	 "wind_anim_east/Wind_anim_20.bmp", 
+									 "wind_anim_east/Wind_anim_21.bmp", 
+									 "wind_anim_east/Wind_anim_22.bmp", 
+									 "wind_anim_east/Wind_anim_23.bmp", 
+									 "wind_anim_east/Wind_anim_24.bmp", 
+									 "wind_anim_east/Wind_anim_25.bmp"],
+					"animationSpeed" : 500,	// 500ms per frame.
+				},
+				"Wind_South" : {
+					"colourFiles" : ["wind_anim_south/Wind_anim_01.bmp"],
+					"heightFiles" : ["wind_anim_south/Wind_anim_01.bmp", 
+									 "wind_anim_south/Wind_anim_02.bmp", 
+									 "wind_anim_south/Wind_anim_03.bmp", 
+									 "wind_anim_south/Wind_anim_04.bmp", 
+									 "wind_anim_south/Wind_anim_05.bmp", 
+									 "wind_anim_south/Wind_anim_06.bmp", 
+								 	 "wind_anim_south/Wind_anim_07.bmp", 
+									 "wind_anim_south/Wind_anim_08.bmp", 
+									 "wind_anim_south/Wind_anim_09.bmp", 
+									 "wind_anim_south/Wind_anim_10.bmp", 
+									 "wind_anim_south/Wind_anim_11.bmp", 
+									 "wind_anim_south/Wind_anim_12.bmp", 
+									 "wind_anim_south/Wind_anim_13.bmp",
+									 "wind_anim_south/Wind_anim_14.bmp", 
+									 "wind_anim_south/Wind_anim_15.bmp", 
+									 "wind_anim_south/Wind_anim_16.bmp", 
+									 "wind_anim_south/Wind_anim_17.bmp", 
+									 "wind_anim_south/Wind_anim_18.bmp", 
+									 "wind_anim_south/Wind_anim_19.bmp",
+								 	 "wind_anim_south/Wind_anim_20.bmp", 
+									 "wind_anim_south/Wind_anim_21.bmp", 
+									 "wind_anim_south/Wind_anim_22.bmp", 
+									 "wind_anim_south/Wind_anim_23.bmp", 
+									 "wind_anim_south/Wind_anim_24.bmp", 
+									 "wind_anim_south/Wind_anim_25.bmp"],
+					"animationSpeed" : 500,	// 500ms per frame.
+				},
+				"Wind_West" : {
+					"colourFiles" : ["wind_anim_west/Wind_anim_01.bmp"],
+					"heightFiles" : ["wind_anim_west/Wind_anim_01.bmp", 
+									 "wind_anim_west/Wind_anim_02.bmp", 
+									 "wind_anim_west/Wind_anim_03.bmp", 
+									 "wind_anim_west/Wind_anim_04.bmp", 
+									 "wind_anim_west/Wind_anim_05.bmp", 
+									 "wind_anim_west/Wind_anim_06.bmp", 
+								 	 "wind_anim_west/Wind_anim_07.bmp", 
+									 "wind_anim_west/Wind_anim_08.bmp", 
+									 "wind_anim_west/Wind_anim_09.bmp", 
+									 "wind_anim_west/Wind_anim_10.bmp", 
+									 "wind_anim_west/Wind_anim_11.bmp", 
+									 "wind_anim_west/Wind_anim_12.bmp", 
+									 "wind_anim_west/Wind_anim_13.bmp",
+									 "wind_anim_west/Wind_anim_14.bmp", 
+									 "wind_anim_west/Wind_anim_15.bmp", 
+									 "wind_anim_west/Wind_anim_16.bmp", 
+									 "wind_anim_west/Wind_anim_17.bmp", 
+									 "wind_anim_west/Wind_anim_18.bmp", 
+									 "wind_anim_west/Wind_anim_19.bmp",
+								 	 "wind_anim_west/Wind_anim_20.bmp", 
+									 "wind_anim_west/Wind_anim_21.bmp", 
+									 "wind_anim_west/Wind_anim_22.bmp", 
+									 "wind_anim_west/Wind_anim_23.bmp", 
+									 "wind_anim_west/Wind_anim_24.bmp", 
+									 "wind_anim_west/Wind_anim_25.bmp"],
+					"animationSpeed" : 500,	// 500ms per frame.
+				}, 
+				"Rain_Animation" : {
+					"colourFiles" : ["rain_anim/Rain_anim_colour.bmp"],
+					"heightFiles" : ["rain_anim/Rain_anim_01.bmp",
+									 "rain_anim/Rain_anim_02.bmp",
+									 "rain_anim/Rain_anim_03.bmp",
+									 "rain_anim/Rain_anim_04.bmp",
+									 "rain_anim/Rain_anim_05.bmp",
+									 "rain_anim/Rain_anim_06.bmp",
+									 "rain_anim/Rain_anim_07.bmp",
+									 "rain_anim/Rain_anim_08.bmp",
+									 "rain_anim/Rain_anim_09.bmp",
+									 "rain_anim/Rain_anim_10.bmp",
+									 "rain_anim/Rain_anim_11.bmp",
+									 "rain_anim/Rain_anim_12.bmp",
+									 "rain_anim/Rain_anim_13.bmp"],
+					"animationSpeed" : 500, // 500ms per frame.
+				},
+				"Colour_01" : {
+					"colourFiles" : ["interaction_images/Colour_01.bmp"],
+					"heightFiles" : ["interaction_images/Hight_01.bmp"],
+				},
+				/*"Black_Config" : {
+					"colourFiles" : ["config_img/black_mode.bmp"],
+					"heightFiles" : ["config_img/black_mode.bmp"],
+				},
+				"White_Config" : {
+					"colourFiles" : ["config_img/white_mode.bmp"],
+					"heightFiles" : ["config_img/white_mode.bmp"],
+				},*/
+			}
+			
+			// A 2D array of shape clip pads. Col, Row.
+			var pads = [];
+			
+			var animationFrame = 0;			// The current animation index (set through startAnimation and stopAnimation).
+			var animationEnabled = false;	// Is animation enabled (set through startAnimation and stopAnimation).
+			var animationTimer = null;		// The animation timer so that it can be stopped.
+			
+			/**
+			 * Run when the page loads.
+			 */
+			function start() {
+				
+				// Create the pads.
+				setupPads();
+				
+				// For each weather, load colour and height files into canvases.
+				for (var key in weather) {
+					weather[key]["colour"] = preloadImageList(weather[key]["colourFiles"]);
+					weather[key]["height"] = preloadImageList(weather[key]["heightFiles"]);
+				}
+			}
+			
+			/**
+			 * Convert RGB colour to Grayscale 0-255
+			 */
+			function toGrayscale(r, g, b) {
+				// TODO: Improve this.. there is a better way to convert that gives better grays
+				return (r + g + b) / 3; 
+			}	
+		
+			/**
+			 * Convert RGB colour to HSL.
+			 * Taken from: http://stackoverflow.com/questions/3732046/how-do-you-get-the-hue-of-a-xxxxxx-colour
+			 */
+			function toHSL(r, g, b){
+				var max = Math.max(r, g, b), min = Math.min(r, g, b);
+				var h, s, l = (max + min) / 2;
+				if(max == min){
+					h = s = 0; // achromatic
+				}
+				else {
+					var d = max - min;
+					s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+					switch(max){
+						case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+						case g: h = (b - r) / d + 2; break;
+						case b: h = (r - g) / d + 4; break;
+					}
+					h /= 6;
+				}
+				return [h, s, l];
+			}
+			
+			/**
+			 * Load a list of image files and convert them into a list of canvases.
+			 * @param imageList A list of image files. For example: ["1.bmp", "2.bmp"]
+			 */
+			function preloadImageList(imageList) {
+			
+				var canvasList = [];
+				for (var i = 0; i < imageList.length; ++i) {
+					var canvas = preloadImage(imageList[i]);
+					canvasList.push(canvas);
+				}
+				return canvasList;
+				console.log(canvasList);
+			}
+			
+			/**
+			 * Load a single image file and convert it into a canvas.
+			 * @param imageFile The path to an image file. For example: "image.bmp"
+			 */
+			
+			function preloadImage(imageFile) {
+				
+				var img = new Image();
+				var canvas = document.createElement("canvas");
+				
+				img.onload = function() {
+					
+					canvas.width  = img.width;
+					canvas.height = img.height;
+					var ctx = canvas.getContext('2d');
+					ctx.drawImage(img, 0, 0, img.width, img.height);
+				}
+				
+				img.src = imageFile;
+				return canvas;
+			}			
+			
+			/**
+			 * Animate the weather of a particular type.
+			 * @param weatherType The type of weather.
+			 */
+			function nextFrame(weatherType) {
+				
+				// Draw the next frame and advance the counter.
+				drawWeather(weatherType, animationFrame);
+				animationFrame++;
+				
+				// If we should stop animating, return now.
+				if (!animationEnabled)
+					return;
+				
+				// Get how long the animation frame should last. Default = 1000ms.
+				var delay = weather[weatherType].animationSpeed || 1000;
+				if (delay <= 0)
+					return;
+				
+				// Call a function after 'delay' seconds to advance the frame.
+				animationTimer = setTimeout(function(){
+					nextFrame(weatherType);
+				}, delay);
+			}
+			
+			/**
+			 * Start the weather of a particular type animating.
+			 * @param weatherType The type of weather.
+			 */
+			function startAnimation(weatherType) {
+				
+				// Stop the previous one.
+				stopAnimation();
+				
+				// Enable animations.
+				animationEnabled = true;
+				animationFrame = 0;
+				
+				// Start it off.
+				nextFrame(weatherType);
+			}
+			
+			/**
+			 * Stop the weather animating.
+			 */
+			function stopAnimation(){
+				
+				// Stop animations and reset counter.
+				animationEnabled = false;
+				animationFrame = 0;
+				
+				// Stop the timer.
+				if (animationTimer !== undefined)
+					clearTimeout(animationTimer);
+				animationTimer = null;
+			}
+			
+			
+			/**
+			 * Draw a type of weather. 
+			 * @param weatherType The type of weather to draw.
+			 * @param animationIndex The index into the animation array. For the first one, use 0.
+			 */
+			function drawWeather(weatherType, animationIndex) {
+				
+				// Get the canvas from the weather type for height and colour.
+				//  This wraps around frames larger than the length.
+				var colourFrames = weather[weatherType]["colour"];
+				var heightFrames = weather[weatherType]["height"];
+				var colourCanvas = colourFrames[animationIndex % colourFrames.length];
+				var heightCanvas = heightFrames[animationIndex % heightFrames.length];
+				
+				// For each pixel in the colour canvas, set the corresponding shape clip.
+				var ctx = colourCanvas.getContext('2d');
+				for (var y = 0; y < pads.length; ++y) {
+					for (var x = 0; x < pads[y].length; ++x) {
+						var colourArray = ctx.getImageData(x, y, 1, 1).data;					
+						var r = colourArray[0];
+						var g = colourArray[1];
+						var b = colourArray[2];
+						pads[y][x].colour(r, g, b);
+					}
+				}
+				
+				// For each pixel in the height canvas, set the corresponding shape clip.
+				var ctx = heightCanvas.getContext('2d');
+				for (var y = 0; y < pads.length; ++y) {
+					for (var x = 0; x < pads[y].length; ++x) {
+						var colourArray = ctx.getImageData(x, y, 1, 1).data;
+						var value = toGrayscale(colourArray[0], colourArray[1], colourArray[2])
+						pads[y][x].height(value / 255.0);
+					}
+				}
+			}
+			
+			
+			/** 
+			 * Create the ShapeClip pads in an N by M grid. 
+			 */
+			var pixel_id = 0; 
+			function setupPads() {
+			
+				// Correct ppi value.
+				var agent = navigator.userAgent.toLowerCase();
+				if 		(agent.indexOf("windows") 	!= -1) 	{ }
+				if 		(agent.indexOf("nexus 5") 	!= -1) 	{ __ppi(150); }
+				else if (agent.indexOf("ipad") 		!= -1) 	{ __ppi(160); }
+				console.log("User Agent: " + navigator.userAgent.toLowerCase());
+				
+				// The size of the ShapeClip pad in mm.
+				var SC_SIZE = __px(settings.ClipSize);
+				
+				// Create a grid of ShapeClip pads.
+				for (var row = 0; row < settings.NumClipsY; ++row) { 
+					
+					pads.push([]);
+					
+					for (var col = 0; col < settings.NumClipsX; ++col) {
+						
+						// Compute the next position.
+						var pX = settings.OffsetX + (col * settings.SpacingX);
+						var pY = settings.OffsetY + (row * settings.SpacingY);
+						
+						// Create the pad and store user data that describes its position.
+						var pad = new ShapeClip({x: __px(pX), y: __px(pY), width: SC_SIZE, height: SC_SIZE});
+						pad._id = "pad_" + col + "-" + row;
+						pad.outline(true);
+						pad.rotate(180);
+						pad.mouseRotate(false);
+						pad.userData = [col, row];
+						
+						// Add it to the list of pads.
+						pads[row].push(pad);
+						
+						//pixel_id = pad._id;
+						//console.log(pad.userData);
+					}
+				}
+				
+				// Start the pads all at once.
+				/** UNCOMMENT FOR COLOUR*/
+				for (var row=0; row<pads.length; ++row)
+					for (var col=0; col<pads[row].length; ++col)
+						pads[row][col].pulse();
+					
+			};
+			
+			
+			
+			
+			/** Calibrate motor - black - bottom. */
+			function calibrate_black(){
+			
+				for (var row=0; row<pads.length; ++row)
+					for (var col=0; col<pads[row].length; ++col)
+						pads[row][col]._ldr1(0) && pads[row][col].height(0);
+					
+				
+			}
+			
+			/** Calibrate motor - white - top. */
+			function calibrate_white(){
+				
+				for (var row=0; row<pads.length; ++row)
+					for (var col=0; col<pads[row].length; ++col)
+					//	pads[row][col].height(0) &&	pads[row][col]._ldr1(0);
+						pads[row][col].height(1) &&	pads[row][col]._ldr1(1);
+						
+					
+				
+			}
+			
+			/** NEED TO PUT THIS IN SEPARATE FILE - WeatherData*/
+			/* Data models */
+			var wind_dir = 0; // Wind direction in degrees.
+			var wind_speed = 0; // Wind speed - Unit: meter/sec - set of 3 speeds - light wind - mid wind - high wind.
+			var rainfall_vol = 0; // "rain.3h" - Rain volume for the last 3 hours. - set of 3 levels: light rain - mid rain - heavy rain.
+			// Weather state:
+			var weather_state = 0; // Stores weather state.
+			var weather_id = 0;
+			
+			/** Fetch initial wind data from API. */
+			
+			$.getJSON("http://api.openweathermap.org/data/2.5/weather?q=Lancaster,UK",function(results) {
+			
+				/** Wind Results - direction. */
+				wind_dir = results.wind.deg;
+				console.log(wind_dir);
+		
+				/** Wind Results - speed. - To DO!*/
+				wind_speed = results.wind.speed;
+				console.log(wind_speed);
+				
+				/** Rainfall - volume results. -- "Object {3h: 0.015}" - To DO! */
+				rainfall_vol = results.rain;
+				console.log(rainfall_vol);
+				
+				/** Current weather state. */
+				weather_state = results.weather;
+				weather_id = weather_state[0].id;
+				console.log(weather_id);
+				
+			})
+			.fail(function(xhr, ajaxOptions,thrownError) {
+				console.log(xhr.status); console.log(thrownError)
+			});
+			
+			
+			function show_weather(){
+				
+				if(weather_id == 500 && weather_id <= 531){
+					startAnimation('Rain', 0);
+				} else if (weather_id == 803 || weather_id == 804){
+					startAnimation('ManyClouds', 0);
+				} else if (weather_id == 801 || weather_id == 802){
+					startAnimation('FewClouds', 0);
+				} else {
+					startAnimation('ClearSky', 0);
+				}
+				
+			};
+				
+			/** Show current wind direction. */
+			function show_wind() {
+	
+				if (wind_dir > 45 && wind_dir <= 135){
+					startAnimation('Wind_East');
+				} else if (wind_dir > 135 && wind_dir <= 225){
+					startAnimation('Wind_South');
+				} else if (wind_dir > 225 && wind_dir <= 315) {
+					startAnimation('Wind_West');
+				} else { 
+					startAnimation('Wind_North');
+				}
+			};
+			
+			function getTimeInMilliseconds() {
+				var d = new Date();
+				var n = d.getTime();
+				return n;
+			}
+			
+		</script>
+		
+	</head>
+
+	<body onload="start()">
+	
+		
+		<!-- <button onclick="wind_dir;">Show Wind</button> -->
+		<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
+		<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
+		<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
+		<button onclick="startAnimation('Rain', 0);">Rain</button>
+		<button onclick="startAnimation('Wind_North');">Wind North</button>
+		<button onclick="startAnimation('Wind_East');">Wind East</button>
+		<button onclick="startAnimation('Wind_South');">Wind South</button>
+		<button onclick="startAnimation('Wind_West');">Wind West</button>		
+		<button onclick="startAnimation('Rain_Animation');">Rain Animation</button>	
+		<button onclick="show_wind();">Current Wind Direction</button>
+		<button onclick="show_weather();">Show Current Weather</button>
+		<button onclick="calibrate_black();">Black Mode</button>
+		<button onclick="calibrate_white();">White Mode</button>
+		<button onclick="saveFrame();">Show Current Height/Colour</button>
+		<button onclick="generateFrame();">Generate Image</button>
+		
+		<!-- <button onclick="interaction();">Start Interaction</button> -->
+		<!-- Config Buttons. -->
+		<!-- <button onclick="black_mode();">Black Mode</button> -->
+		<!-- <button onclick="white_mode();">White Mode</button> -->
+
+	</body>
+	
+</html>
