@@ -40,13 +40,14 @@
 			var comms = null;
 			var LDR_VALUE_STRING="";
 			var data_array = [];
-			var ip_address = "10.32.127.20"; /** CHANGE IP ADDRESS **/
+			//var ip_address = "10.32.127.20"; /** CHANGE IP ADDRESS **/
+			var ip_address = "192.168.1.5"; /** CHANGE IP ADDRESS **/
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
 			
 			var ANIMATION_MODE = false;
-			var ANIMATION_SPEED = 1000;
+			var ANIMATION_SPEED = 1000; // Default animation speed. Change if needed
 			
 			// Shape-clip index for height:
 			//var sc_height_info = 0;
@@ -54,61 +55,22 @@
 			//var sc_colour_info = [];
 			
 			function getMappedShapeClipPosition(index) {
-				var sc_index=[];
-				switch(index) {
-					case 0:
-					sc_index = [0,0];
-					break;
-					case 1:
-					sc_index = [0,1];
-					break;
-					case 2:
-					sc_index = [0,2];
-					break;
-					case 3:
-					sc_index = [0,3];
-					break;
-					case 4:
-					sc_index = [1,0];
-					break;
-					case 5:
-					sc_index = [1,1];
-					break;
-					case 6:
-					sc_index = [1,2];
-					break;
-					case 7:
-					sc_index = [1,3];
-					break;
-					case 8:
-					sc_index = [2,0];
-					break;
-					case 9:
-					sc_index = [2,1];
-					break;
-					case 10:
-					sc_index = [2,2];
-					break;
-					case 11:
-					sc_index = [2,3];
-					break;
-					case 12:
-					sc_index = [3,0];
-					break;
-					case 13:
-					sc_index = [3,1];
-					break;
-					case 14:
-					sc_index = [3,2];
-					break;
-					case 15:
-					sc_index = [3,3];
-					break;
-					default:
-						//do nothing;
+				var coord1=0;
+				var coord2=0;
+				if(index % 4 == 0) {
+					coord1 = parseInt(index/4);
+					coord2 = 0;    
+				} else {
+					coord1 = parseInt(index/4);
+					coord2 = parseInt(index%4);
 				}
-				return sc_index;
+				var coordinateArray=[];
+				coordinateArray.push(coord1);
+				coordinateArray.push(coord2);
+				return coordinateArray;
 			}
+			
+			
 			var LDR_INDEX = null;
 			var COLOUR_INDEX = 0;
 			var ldr_height = 0;
@@ -138,7 +100,6 @@
 					detectReverse();
 				}
 			}
-			
 			function resetDetectedTime() {
 				DETECTED = false;
 				TIMER_ENABLED = false;
@@ -177,48 +138,37 @@
 			}
 			/** *** End Colour timer functions  ***.*/
 			
-			var animation_detectedTime=0;
-			var ANIMATION_TIMER_DETECTED = false;
-			var ANIMATION_TIMER_ENABLED = false;
-			var animation_frame_position = 0;
 			
 			/** *** Animation timer functions. *** */
 			// Start the timer.
 			function startAnimationCycle() {
 				if(ANIMATION_MODE == true) {
 					console.log("Displaying animation at speed " + ANIMATION_SPEED);
-					
 					//ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
-					
 					var heights = canvasFrame.getHeights()[animation_frame_position];
 					var colours = canvasFrame.getColours()[animation_frame_position];
-					console.log(heights.length);
 					var positionCounter=0;
 					for (var row=0; row<pads.length; ++row) {
 						for (var col=0; col<pads[row].length; ++col) {
 							var sc_indices = getMappedShapeClipPosition(positionCounter);
-							console.log(positionCounter);
-							console.log(JSON.stringify(sc_indices));
 							pads[sc_indices[0]][sc_indices[1]].height(heights[positionCounter]);
 							pads[sc_indices[0]][sc_indices[1]].colour(colours[positionCounter]);
 							
 							positionCounter++;
 						}
 					}
-					
 					animation_frame_position++;
-					if(animation_frame_position == canvasFrame.getColours().length-1) 
+					if(animation_frame_position == canvasFrame.getColours().length-1)  {
+						// Repeat animation if the end of the stack is reached.
 						animation_frame_position = 0;
-
-					resetDetectedColourTime();
+					}
 
 					setTimeout(startAnimationCycle, ANIMATION_SPEED);
 				}
 			}
-			
 			/** *** End animation timer functions. *** */
 			
-			
+			/** *** Handle 'pushing' down the ShapeClips. *** */
 			function detectReverse() {
 				if(TIMER_ENABLED == true) {
 					var currentTime = getTimeInMilliseconds();
@@ -231,20 +181,8 @@
 					}
 				}
 			}
+			/** *** End pushing down ShapeClips *** */
 			
-			function detectColourList(){
-				if(TIMER_ENABLED == true){
-					var currentTime = getTimeInMilliseconds();
-					if(DETECTED == true && parseInt(currentTime - detectedTime) > 4000) {
-						//console.log("4 seconds have passed");
-						COLOUR_MODE = true;
-						resetDetectedTime();
-					}
-					else { setTimeout(detectColourList, 1000); 
-					}
-				}
-			
-			}
 
 			// Try to connect to the websocket server.
 			initComms("WeatherApp", ip_address, 3000, function() {
@@ -999,49 +937,50 @@
 	</head>
 
 	<body onload="start()">
-
-		<div id="calibrationButtons">
-			<button onclick="calibrate_black();">Black Mode</button>
-			<button onclick="calibrate_white();">White Mode</button>
-		</div>
-		
-		<div id="weatherButtons" style="display: none;">
-			<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
-			<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
-			<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
-			<!-- <button onclick="startAnimation('Rain', 0);">Rain</button> -->
-			<!-- <button onclick="startAnimation('Wind_North');">Wind North</button> -->
-			<!-- <button onclick="startAnimation('Wind_East');">Wind East</button> -->
-			<!-- <button onclick="startAnimation('Wind_South');">Wind South</button> -->
-			<!-- <button onclick="startAnimation('Wind_West');">Wind West</button>		 -->
-			<button onclick="startAnimation('Rain_Animation');">Rain Animation</button>	
-			<button onclick="show_wind();">Wind Direction</button>
-			<button onclick="show_weather();">Current Weather</button>
-		</div>
-		
-		<div id="WeatherApp">
-			<button onclick="showWeatherApp();">Weather Application</button>
-		</div>
-		
-		<div id="animationMode">
-			<button onclick="animationModeBtn();">Animation Mode</button>
-		</div>
-		
-		<div id="animationButtons" style="display: none;">
-			<!-- <button onclick="saveFrame();">Show Current Height/Colour</button> -->
-			<button onclick="generateFrame();">Save Frame</button>
-			<button onclick="playAnimation();">Play Animation</button>
-			<button onclick="stopCanvasAnimation();">Stop Animation</button>
-			<br>
-			<div class="animation_speed_controls">
-				<button id="decrease_speed" onclick="decreaseCounter();">Decrease Speed</button>
-				<div class="animation_speed">1</div>
-				<button id="increase_speed" onclick="increaseCounter();">Increase Speed</button>
+		<div class="control_panel">
+			<div id="calibrationButtons">
+				<button onclick="calibrate_black();">Black Mode</button>
+				<button onclick="calibrate_white();">White Mode</button>
 			</div>
-		</div>
-		
-		<div id="mainMenu" style="display: none;">
-			<button onclick="mainMenuBtn();">Main Menu</button>
+			
+			<div id="weatherButtons" style="display: none;">
+				<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
+				<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
+				<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
+				<!-- <button onclick="startAnimation('Rain', 0);">Rain</button> -->
+				<!-- <button onclick="startAnimation('Wind_North');">Wind North</button> -->
+				<!-- <button onclick="startAnimation('Wind_East');">Wind East</button> -->
+				<!-- <button onclick="startAnimation('Wind_South');">Wind South</button> -->
+				<!-- <button onclick="startAnimation('Wind_West');">Wind West</button>		 -->
+				<button onclick="startAnimation('Rain_Animation');">Rain Animation</button>	
+				<button onclick="show_wind();">Wind Direction</button>
+				<button onclick="show_weather();">Current Weather</button>
+			</div>
+			
+			<div id="WeatherApp">
+				<button onclick="showWeatherApp();">Weather Application</button>
+			</div>
+			
+			<div id="animationMode">
+				<button onclick="animationModeBtn();">Animation Mode</button>
+			</div>
+			
+			<div id="animationButtons" style="display: none;">
+				<!-- <button onclick="saveFrame();">Show Current Height/Colour</button> -->
+				<button onclick="generateFrame();">Save Frame</button>
+				<button onclick="playAnimation();">Play Animation</button>
+				<button onclick="stopCanvasAnimation();">Stop Animation</button>
+				<br>
+				<div class="animation_speed_controls">
+					<button id="decrease_speed" onclick="decreaseCounter();">Decrease Speed</button>
+					<div class="animation_speed">1</div>
+					<button id="increase_speed" onclick="increaseCounter();">Increase Speed</button>
+				</div>
+			</div>
+			
+			<div id="mainMenu" style="display: none;">
+				<button onclick="mainMenuBtn();">Main Menu</button>
+			</div>
 		</div>
 		<!-- <button onclick="interaction();">Start Interaction</button> -->
 		<!-- Config Buttons. -->
