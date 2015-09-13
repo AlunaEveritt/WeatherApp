@@ -14,9 +14,6 @@
 		<!-- Shape Clip -->
 		<script type="text/javascript" src="ShapeClipAPI.js"></script>
 		
-		<!-- bitmap Image Generator 
-		<script type="text/javascript" src="bitmapImageGenerator.js"></script>-->
-		
 		<!-- JQuery -->
 		<script type="text/javascript" src="jquery-2.1.0.min.js"></script>
 		
@@ -34,8 +31,8 @@
 			var LDR_colour_activation = 950;
 			
 			// LED colour list: 
-			/**					Blue			Red			Green		Purple			Orange			Yellow			Pink   			Brown			White  */
-			var sc_colour = [[0, 0, 255], [255, 0, 0], [0, 255, 0], [128, 0, 128], [255, 165, 0], [255, 255, 0], [255, 105, 180], [139, 69, 19], [255, 255, 255]];
+			/**					Blue	  	 Red		 Green		  Purple		 Yellow			White   		No Colour*/
+			var sc_colour = [[0, 0, 255], [255, 0, 0], [0, 255, 0], [128, 0, 128], [255, 255, 0], [255, 255, 255], [0.0, 0.0, 0.0]];
 			var LED_colour_id = 0;
 			
 			var canvasFrame = new canvasFrame();
@@ -43,10 +40,13 @@
 			var comms = null;
 			var LDR_VALUE_STRING="";
 			var data_array = [];
-			var ip_address = "10.32.117.48"; /** CHANGE IP ADDRESS **/
+			var ip_address = "10.32.127.20"; /** CHANGE IP ADDRESS **/
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
+			
+			var ANIMATION_MODE = false;
+			var ANIMATION_SPEED = 1000;
 			
 			// Shape-clip index for height:
 			//var sc_height_info = 0;
@@ -66,22 +66,43 @@
 					sc_index = [0,2];
 					break;
 					case 3:
-					sc_index = [1,0];
+					sc_index = [0,3];
 					break;
 					case 4:
-					sc_index = [1,1];
+					sc_index = [1,0];
 					break;
 					case 5:
-					sc_index = [1,2];
+					sc_index = [1,1];
 					break;
 					case 6:
-					sc_index = [2,0];
+					sc_index = [1,2];
 					break;
 					case 7:
-					sc_index = [2,1];
+					sc_index = [1,3];
 					break;
 					case 8:
+					sc_index = [2,0];
+					break;
+					case 9:
+					sc_index = [2,1];
+					break;
+					case 10:
 					sc_index = [2,2];
+					break;
+					case 11:
+					sc_index = [2,3];
+					break;
+					case 12:
+					sc_index = [3,0];
+					break;
+					case 13:
+					sc_index = [3,1];
+					break;
+					case 14:
+					sc_index = [3,2];
+					break;
+					case 15:
+					sc_index = [3,3];
 					break;
 					default:
 						//do nothing;
@@ -105,6 +126,8 @@
 			var DETECTED_COLOUR = null;
 			var COLOUR_TIMER_ENABLED = false;
 			
+			
+			
 			var COLOUR_POSITION=0;
 			
 			function logDetectedTime(ldr_index) {
@@ -120,20 +143,25 @@
 				DETECTED = false;
 				TIMER_ENABLED = false;
 			}
+			
+			/** *** Timer functions for colour cycling.*** */
 			function resetDetectedColourTime() {
 				COLOUR_TIMER_DETECTED = false;
 				COLOUR_TIMER_ENABLED = false;
 			}
 			
+			// Store initial settings and start the timer.
 			function startColourTimer() {
 				if(COLOUR_TIMER_DETECTED == false) {
 					COLOUR_TIMER_DETECTED = true;
+					// below is need to store initial time so it can be compared in the colourCycle function
 					colour_detectedTime = getTimeInMilliseconds();
 					COLOUR_TIMER_ENABLED = true;
 					startColourCycle();
 				}
 			}
 			
+			// Start the timer.
 			function startColourCycle() {
 				var currentTime = getTimeInMilliseconds();
 				if(COLOUR_TIMER_DETECTED == true && parseInt(currentTime - colour_detectedTime) > 2000) {
@@ -147,6 +175,48 @@
 					setTimeout(startColourCycle, 1000);
 				}
 			}
+			/** *** End Colour timer functions  ***.*/
+			
+			var animation_detectedTime=0;
+			var ANIMATION_TIMER_DETECTED = false;
+			var ANIMATION_TIMER_ENABLED = false;
+			var animation_frame_position = 0;
+			
+			/** *** Animation timer functions. *** */
+			// Start the timer.
+			function startAnimationCycle() {
+				if(ANIMATION_MODE == true) {
+					console.log("Displaying animation at speed " + ANIMATION_SPEED);
+					
+					//ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+					
+					var heights = canvasFrame.getHeights()[animation_frame_position];
+					var colours = canvasFrame.getColours()[animation_frame_position];
+					console.log(heights.length);
+					var positionCounter=0;
+					for (var row=0; row<pads.length; ++row) {
+						for (var col=0; col<pads[row].length; ++col) {
+							var sc_indices = getMappedShapeClipPosition(positionCounter);
+							console.log(positionCounter);
+							console.log(JSON.stringify(sc_indices));
+							pads[sc_indices[0]][sc_indices[1]].height(heights[positionCounter]);
+							pads[sc_indices[0]][sc_indices[1]].colour(colours[positionCounter]);
+							
+							positionCounter++;
+						}
+					}
+					
+					animation_frame_position++;
+					if(animation_frame_position == canvasFrame.getColours().length-1) 
+						animation_frame_position = 0;
+
+					resetDetectedColourTime();
+
+					setTimeout(startAnimationCycle, ANIMATION_SPEED);
+				}
+			}
+			
+			/** *** End animation timer functions. *** */
 			
 			
 			function detectReverse() {
@@ -180,7 +250,7 @@
 			initComms("WeatherApp", ip_address, 3000, function() {
 				console.log("Connected");
 				
-				for(var i=0; i<9; i++) {
+				for(var i=0; i<16; i++) {
 					sc_heights.push(0);
 					sc_colours.push([0,0,255]);
 				}
@@ -210,8 +280,8 @@
 						count++;
 					});
 					
-					
-					if(LDR_INDEX != null) {
+					// Interaction for height.
+					if(LDR_INDEX != null && ANIMATION_MODE == false) {
 						if(data_array[LDR_INDEX] > LDR_activation_threshold && data_array[LDR_INDEX] < 700) {
 							if(sc_heights[LDR_INDEX] <= 1) {
 								resetDetectedTime();
@@ -243,8 +313,8 @@
 							else { REVERSE_MODE = false; }
 						}
 					}
-					
-					if(COLOUR_INDEX != null){
+					// Interaction for colour - using light.
+					if(COLOUR_INDEX != null && ANIMATION_MODE == false){
 						if(data_array[COLOUR_INDEX] > LDR_colour_activation){
 							console.log("In colour mode");
 							var sc_indices = getMappedShapeClipPosition(COLOUR_INDEX);
@@ -260,7 +330,7 @@
 				});
 			});
 			
-			
+			/** Animation Features - Faisal**/
 			function canvasFrame() {
 				var colours=[];
 				var heights=[];
@@ -279,16 +349,63 @@
 				}
 			}
 			
+			/** Gets arrays with colour and height values **/
 			function generateFrame() {
 				canvasFrame.saveColours(sc_colours);
 				canvasFrame.saveHeights(sc_heights);
+				
 				var colorarray = canvasFrame.getColours();
 				console.log("Colours: "+ colorarray[0]);
 				console.log("Heights: "+ canvasFrame.getHeights());
 			}
 			
-			/** - New Frame - **/
+			/** - Play Animation - **/
+			function playAnimation(){
+				if(canvasFrame.getHeights().length < 1 || canvasFrame.getColours().length < 1 ) {
+					// No frames have been stored, so exit.
+					return;
+				}
+				ANIMATION_MODE=true;
+				ANIMATION_SPEED = $('div.animation_speed').html();
+				ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+				startAnimationCycle();
+			};
 			
+			function stopCanvasAnimation() {
+				ANIMATION_MODE = false;
+			}
+			
+			/** - Animation Speed Decrease - **/
+			function decreaseCounter(){
+				var speed = $('div.animation_speed').html();
+				if(speed == 1) {
+					// do nothing, at minimum speed
+				}
+				else if(speed > 1) {
+					ANIMATION_SPEED = parseInt(ANIMATION_SPEED/1000);
+					ANIMATION_SPEED--;
+					$('div.animation_speed').html(ANIMATION_SPEED);
+					ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+				}
+			};
+			
+			/** - Animation Speed Increase - **/
+			function increaseCounter(){
+				var speed = $('div.animation_speed').html();
+				if(speed == 10) {
+					// do nothing, at minimum speed
+				}
+				else if(speed < 10) {
+					ANIMATION_SPEED = parseInt(ANIMATION_SPEED/1000);
+					ANIMATION_SPEED++;
+					$('div.animation_speed').html(ANIMATION_SPEED);
+					ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+				}
+			};
+			
+			
+			/************/
+			/** - New Frame - Aluna code **/
 			var rgb_info = sc_colour[COLOUR_POSITION];
 			var string_colour = rgb_info.toString();
 			var pixelInfo = [];
@@ -307,24 +424,6 @@
 				//document.write(pads[sc_indices_h[0]][sc_indices_h[1]].sc_heights[LDR_INDEX]);
 				
 			};
-			
-			// Sorting height & colour;
-			var newAnimation = [];
-			
-			/** - New Animation - **/
-			/*function createNewAnimation(){
-				
-				// Create new log for new animation
-				// newAnimation array ->
-				
-				// Save each frame to newAnimation Array:
-			};*/
-			
-			
-			
-			/*** GENERATE BITMAP IMAGE ***/
-			
-			
 			
 			/** - Reading LDR values - **/
 			function initComms(clientID, server, study_port, onOpen) {
@@ -360,10 +459,10 @@
 			 * Settings for the application.
 			 */
 			var settings = {
-				NumClipsX  : 6,		// The number of clips across X.
-				NumClipsY  : 6,		// The number of clips across Y.
-				OffsetX    : 38,//15, //150,	// Offset from left of screen - 20 - 150.	
-				OffsetY    : 44, //20,		// Offset from top of screen - 25 - 40.
+				NumClipsX  : 4,		// The number of clips across X.
+				NumClipsY  : 4,		// The number of clips across Y.
+				OffsetX    : 88,//15, //150,	// Offset from left of screen - 20 - 150.	
+				OffsetY    : 80, //20,		// Offset from top of screen - 25 - 40.
 				SpacingX   : 38, //22,	// Spacing between clips in X - 20 - 15.
 				SpacingY   : 35, //25,  // Spacing between clips in Y - 18 - 16.5.
 				ClipSize   : 20, //15,	// The size of a shapeclip in mm - 16 - 12.
@@ -530,14 +629,6 @@
 					"colourFiles" : ["interaction_images/Colour_01.bmp"],
 					"heightFiles" : ["interaction_images/Hight_01.bmp"],
 				},
-				/*"Black_Config" : {
-					"colourFiles" : ["config_img/black_mode.bmp"],
-					"heightFiles" : ["config_img/black_mode.bmp"],
-				},
-				"White_Config" : {
-					"colourFiles" : ["config_img/white_mode.bmp"],
-					"heightFiles" : ["config_img/white_mode.bmp"],
-				},*/
 			}
 			
 			// A 2D array of shape clip pads. Col, Row.
@@ -776,10 +867,7 @@
 						pads[row][col].pulse();
 					
 			};
-			
-			
-			
-			
+
 			/** Calibrate motor - black - bottom. */
 			function calibrate_black(){
 			
@@ -872,30 +960,89 @@
 				return n;
 			}
 			
+			/** Buttons **/
+			function showWeatherApp() {
+				// Showing:
+				document.getElementById("weatherButtons").style.display = "block";
+				document.getElementById("mainMenu").style.display = "block";
+				
+				// Not showing:
+				document.getElementById("animationButtons").style.display = "none";
+				document.getElementById("WeatherApp").style.display = "none";
+				document.getElementById("animationMode").style.display = "none";
+			}
+			
+			function mainMenuBtn(){
+				// Showing:
+				document.getElementById("WeatherApp").style.display = "block";
+				document.getElementById("animationMode").style.display = "block";
+				
+				// Not showing:
+				document.getElementById("animationButtons").style.display = "none";
+				document.getElementById("weatherButtons").style.display = "none";
+				document.getElementById("mainMenu").style.display = "none";
+			}
+			
+			function animationModeBtn(){
+				// Showing:
+				document.getElementById("animationButtons").style.display = "block";
+				document.getElementById("mainMenu").style.display = "block";
+				
+				// Not showing:
+				document.getElementById("weatherButtons").style.display = "none";
+				document.getElementById("WeatherApp").style.display = "none";
+				document.getElementById("animationMode").style.display = "none";
+			}
+			
 		</script>
 		
 	</head>
 
 	<body onload="start()">
-	
+
+		<div id="calibrationButtons">
+			<button onclick="calibrate_black();">Black Mode</button>
+			<button onclick="calibrate_white();">White Mode</button>
+		</div>
 		
-		<!-- <button onclick="wind_dir;">Show Wind</button> -->
-		<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
-		<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
-		<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
-		<button onclick="startAnimation('Rain', 0);">Rain</button>
-		<button onclick="startAnimation('Wind_North');">Wind North</button>
-		<button onclick="startAnimation('Wind_East');">Wind East</button>
-		<button onclick="startAnimation('Wind_South');">Wind South</button>
-		<button onclick="startAnimation('Wind_West');">Wind West</button>		
-		<button onclick="startAnimation('Rain_Animation');">Rain Animation</button>	
-		<button onclick="show_wind();">Current Wind Direction</button>
-		<button onclick="show_weather();">Show Current Weather</button>
-		<button onclick="calibrate_black();">Black Mode</button>
-		<button onclick="calibrate_white();">White Mode</button>
-		<button onclick="saveFrame();">Show Current Height/Colour</button>
-		<button onclick="generateFrame();">Generate Image</button>
+		<div id="weatherButtons" style="display: none;">
+			<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
+			<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
+			<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
+			<!-- <button onclick="startAnimation('Rain', 0);">Rain</button> -->
+			<!-- <button onclick="startAnimation('Wind_North');">Wind North</button> -->
+			<!-- <button onclick="startAnimation('Wind_East');">Wind East</button> -->
+			<!-- <button onclick="startAnimation('Wind_South');">Wind South</button> -->
+			<!-- <button onclick="startAnimation('Wind_West');">Wind West</button>		 -->
+			<button onclick="startAnimation('Rain_Animation');">Rain Animation</button>	
+			<button onclick="show_wind();">Wind Direction</button>
+			<button onclick="show_weather();">Current Weather</button>
+		</div>
 		
+		<div id="WeatherApp">
+			<button onclick="showWeatherApp();">Weather Application</button>
+		</div>
+		
+		<div id="animationMode">
+			<button onclick="animationModeBtn();">Animation Mode</button>
+		</div>
+		
+		<div id="animationButtons" style="display: none;">
+			<!-- <button onclick="saveFrame();">Show Current Height/Colour</button> -->
+			<button onclick="generateFrame();">Save Frame</button>
+			<button onclick="playAnimation();">Play Animation</button>
+			<button onclick="stopCanvasAnimation();">Stop Animation</button>
+			<br>
+			<div class="animation_speed_controls">
+				<button id="decrease_speed" onclick="decreaseCounter();">Decrease Speed</button>
+				<div class="animation_speed">1</div>
+				<button id="increase_speed" onclick="increaseCounter();">Increase Speed</button>
+			</div>
+		</div>
+		
+		<div id="mainMenu" style="display: none;">
+			<button onclick="mainMenuBtn();">Main Menu</button>
+		</div>
 		<!-- <button onclick="interaction();">Start Interaction</button> -->
 		<!-- Config Buttons. -->
 		<!-- <button onclick="black_mode();">Black Mode</button> -->

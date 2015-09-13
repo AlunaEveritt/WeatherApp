@@ -1,15 +1,41 @@
 
-.buttons {
-	position:absolute;
+button {
+	position:relative;
+	
+	left:65%;
+	top: 10px;
 	bottom:10px;
 	text-align:center;
 	margin:0 auto;
-	left:24%;
-	padding:1px;
-	padding-bottom:20px;
-	padding-left:20px;
-	padding-right:20px;
-	border-radius:15px;
+	
+	padding:5px;
+	padding-bottom:5px;
+	padding-top:5px;
+	padding-left:5px;
+	padding-right:5px;
+	margin-top: 10px;
 	background:white;
-	height:70px;
+	height:50px;
+}
+
+input {
+	position: relative;
+	left: 65%;
+	top: 50px;
+	
+
+}
+
+.animation_speed {
+	font-size:1.0em;
+}
+#decrease_speed {
+}
+#increase_speed {
+}
+
+.animation_speed_controls {
+	width:300px;
+	position:absolute;
+	right:4%;
 }
