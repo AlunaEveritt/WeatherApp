@@ -41,7 +41,7 @@
 			var LDR_VALUE_STRING="";
 			var data_array = [];
 			//var ip_address = "10.32.127.20"; /** CHANGE IP ADDRESS **/
-			var ip_address = "192.168.1.5"; /** CHANGE IP ADDRESS **/
+			var ip_address = "148.88.226.122"; /** CHANGE IP ADDRESS **/
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
@@ -939,11 +939,13 @@
 	<body onload="start()">
 		<div class="control_panel">
 			<div id="calibrationButtons">
+				<h1 class="calibration_heading">Calibration</h1>
 				<button onclick="calibrate_black();">Black Mode</button>
 				<button onclick="calibrate_white();">White Mode</button>
 			</div>
 			
 			<div id="weatherButtons" style="display: none;">
+				<h1 class="weather_heading">Weather Display</h1>
 				<button onclick="startAnimation('ClearSky', 0);">Clear Sky</button>
 				<button onclick="startAnimation('FewClouds', 0);">Few Clouds</button>
 				<button onclick="startAnimation('ManyClouds',  0);">Many Clouds</button>
@@ -958,14 +960,17 @@
 			</div>
 			
 			<div id="WeatherApp">
+			<h1 class="weather_heading">Weather Display</h1>
 				<button onclick="showWeatherApp();">Weather Application</button>
 			</div>
 			
 			<div id="animationMode">
+				<h1 class="animation_heading">Animation</h1>
 				<button onclick="animationModeBtn();">Animation Mode</button>
 			</div>
 			
 			<div id="animationButtons" style="display: none;">
+				<h1 class="animation_heading">Animation</h1>
 				<!-- <button onclick="saveFrame();">Show Current Height/Colour</button> -->
 				<button onclick="generateFrame();">Save Frame</button>
 				<button onclick="playAnimation();">Play Animation</button>
