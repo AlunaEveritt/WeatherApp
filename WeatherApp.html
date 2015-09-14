@@ -30,6 +30,9 @@
 			// LDR colour thresholds.
 			var LDR_colour_activation = 950;
 			
+			var LDR_activation_percentage = 0.63;
+			var colour_activation_percentage = 1.1;
+			
 			// LED colour list: 
 			/**					Blue	  	 Red		 Green		  Purple		 Yellow			White   		No Colour*/
 			var sc_colour = [[0, 0, 255], [255, 0, 0], [0, 255, 0], [128, 0, 128], [255, 255, 0], [255, 255, 255], [0.0, 0.0, 0.0]];
@@ -206,8 +209,11 @@
 					
 					data_array.map(function(val) {
 						// For height.
-						if(val < LDR_activation_threshold) {
+						//console.log(parseInt(val*LDR_activation_percentage));
+						var threshold = parseInt(val*LDR_activation_percentage);
+						if(parseInt(val) < LDR_activation_threshold) {
 							//console.log("activating LDR " + count);
+							console.log("detected");
 							LDR_INDEX = count;
 							
 						}
