@@ -41,7 +41,7 @@
 			var LDR_VALUE_STRING="";
 			var data_array = [];
 			//var ip_address = "10.32.127.20"; /** CHANGE IP ADDRESS **/
-			var ip_address = "148.88.226.122"; /** CHANGE IP ADDRESS **/
+			var ip_address = "10.32.122.27"; /** CHANGE IP ADDRESS **/
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
@@ -401,8 +401,8 @@
 				NumClipsY  : 4,		// The number of clips across Y.
 				OffsetX    : 88,//15, //150,	// Offset from left of screen - 20 - 150.	
 				OffsetY    : 80, //20,		// Offset from top of screen - 25 - 40.
-				SpacingX   : 38, //22,	// Spacing between clips in X - 20 - 15.
-				SpacingY   : 35, //25,  // Spacing between clips in Y - 18 - 16.5.
+				SpacingX   : 43, //22,	// Spacing between clips in X - 20 - 15.
+				SpacingY   : 45, //25,  // Spacing between clips in Y - 18 - 16.5.
 				ClipSize   : 20, //15,	// The size of a shapeclip in mm - 16 - 12.
 			};
 			
@@ -932,6 +932,17 @@
 				document.getElementById("animationMode").style.display = "none";
 			}
 			
+			function addButtonTouchFunctions() {
+				$('button#blackmode').on('click', function() {
+					calibrate_black();
+				});
+				$('button#whitemode').on('click', function() {
+					calibrate_white();
+				});
+			}
+			
+			
+			addButtonTouchFunctions();
 		</script>
 		
 	</head>
@@ -940,8 +951,8 @@
 		<div class="control_panel">
 			<div id="calibrationButtons">
 				<h1 class="calibration_heading">Calibration</h1>
-				<button onclick="calibrate_black();">Black Mode</button>
-				<button onclick="calibrate_white();">White Mode</button>
+				<button id="blackmode" onclick="calibrate_black();">Black Mode</button>
+				<button id="whitemode" onclick="calibrate_white();">White Mode</button>
 			</div>
 			
 			<div id="weatherButtons" style="display: none;">
