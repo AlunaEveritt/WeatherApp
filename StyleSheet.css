@@ -81,10 +81,33 @@ h1.calibration_heading, h1.weather_heading, h1.animation_heading {
 
 }
 
-#animationMode, #animationButtons {
+#animationMode {
 	width:100%;
 	padding-top:10px;
 	padding-bottom:15px;
 	border-bottom:1px solid gray;
+}
+
+#animationButtons {
+	width:100%;
+	padding-top:10px;
+	padding-bottom:60px;
+	border-bottom:1px solid gray;
+}
+
+.speed_label, .animation_speed {
+	float: left;
+    margin-top: 15px;
+    margin-left: 10px;
+    font-size: 1.6em;
+	font-family:arial;
+}
+
+.saved_frames_label, .saved_frames {
+	float: left;
+    margin-top: 15px;
+    margin-left: 10px;
+    font-size: 1.6em;
+	font-family:arial;
 }
 
