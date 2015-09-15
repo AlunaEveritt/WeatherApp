@@ -32,6 +32,7 @@
 			
 			var LDR_activation_percentage = 0.62;
 			var colour_activation_percentage = 1.1;
+			var reverse_increment = 1.28;
 			
 			// LED colour list: 
 			/**					Blue	  	 Red		 Green		  Purple		 Yellow			White   		No Colour*/
@@ -136,6 +137,8 @@
 					COLOUR_POSITION++;
 					sc_colours[COLOUR_INDEX] = sc_colour[COLOUR_POSITION];
 					if(COLOUR_POSITION == 8) { COLOUR_POSITION = 0; }
+					//update_thresholds();
+					update_thresholds();
 					resetDetectedColourTime();
 				}
 				else {
@@ -227,7 +230,7 @@
 					
 					data_array.map(function(val) {
 						// For height.
-						if(parseInt(val) < thresholdArray[count]) {
+						if(parseInt(val) < parseInt(thresholdArray[count]*reverse_increment)) {
 							//console.log("activating LDR " + count);
 							console.log("detected");
 							LDR_INDEX = count;
@@ -256,16 +259,18 @@
 							} 
 							else { }
 						} 
-						if(data_array[LDR_INDEX] < 500) {
+						else if(data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*reverse_increment)) {
 							logDetectedTime(LDR_INDEX);
 						}
-						console.log(REVERSE_MODE);
+						console.log("thresholds: " + JSON.stringify(thresholdArray));
+						console.log("---" + parseInt(thresholdArray[LDR_INDEX]*reverse_increment));
+						console.log("reverse mode: " + REVERSE_MODE);
 						if(REVERSE_MODE == true) {
-							if(sc_heights[LDR_INDEX] >= 0) {
+							if(sc_heights[LDR_INDEX] >= 0 && data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*reverse_increment)) {
 								console.log("heights going down: " + sc_heights[LDR_INDEX]);
 								var sc_indices = getMappedShapeClipPosition(LDR_INDEX); 
 								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
-								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.03);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.01);
 								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(2);
 								console.log(sc_heights[LDR_INDEX]);
 								//sc_indices_h = sc_heights[LDR_INDEX];
