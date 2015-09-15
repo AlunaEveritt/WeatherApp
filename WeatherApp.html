@@ -30,7 +30,7 @@
 			// LDR colour thresholds.
 			var LDR_colour_activation = 950;
 			
-			var LDR_activation_percentage = 0.63;
+			var LDR_activation_percentage = 0.62;
 			var colour_activation_percentage = 1.1;
 			
 			// LED colour list: 
@@ -48,6 +48,9 @@
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
+			
+			var thresholdArray=[];
+			var UPDATE_THRESHOLDS=false;
 			
 			var ANIMATION_MODE = false;
 			var ANIMATION_SPEED = 1000; // Default animation speed. Change if needed
@@ -161,7 +164,7 @@
 						}
 					}
 					animation_frame_position++;
-					if(animation_frame_position == canvasFrame.getColours().length-1)  {
+					if(animation_frame_position == canvasFrame.getColours().length)  {
 						// Repeat animation if the end of the stack is reached.
 						animation_frame_position = 0;
 					}
@@ -175,16 +178,21 @@
 			function detectReverse() {
 				if(TIMER_ENABLED == true) {
 					var currentTime = getTimeInMilliseconds();
-					if(DETECTED == true && parseInt(currentTime - detectedTime) > 2000) {
+					if(DETECTED == true && parseInt(currentTime - detectedTime) > 1500) {
 						//console.log("2 seconds have passed");
 						REVERSE_MODE = true;
 						resetDetectedTime();
 					}
-					else {	setTimeout(detectReverse, 1000);
+					else {	setTimeout(detectReverse, 800);
 					}
 				}
 			}
 			/** *** End pushing down ShapeClips *** */
+			
+			function update_thresholds() {
+				UPDATE_THRESHOLDS = true;
+			}
+			
 			
 
 			// Try to connect to the websocket server.
@@ -194,6 +202,7 @@
 				for(var i=0; i<16; i++) {
 					sc_heights.push(0);
 					sc_colours.push([0,0,255]);
+					thresholdArray.push(LDR_activation_threshold);
 				}
 				
 				// Send message to server letting it know who the client is, i.e. the weather application.
@@ -207,11 +216,18 @@
 					// Change hight of each pad.
 					var count = 0;
 					
+					if(UPDATE_THRESHOLDS == true) {
+						UPDATE_THRESHOLDS = false;
+						thresholdArray=[];
+						data_array.map(function(val) {
+							thresholdArray.push(parseInt(val*LDR_activation_percentage));
+						});
+						console.log("Setting new thresholds: " + JSON.stringify(thresholdArray));
+					}
+					
 					data_array.map(function(val) {
 						// For height.
-						//console.log(parseInt(val*LDR_activation_percentage));
-						var threshold = parseInt(val*LDR_activation_percentage);
-						if(parseInt(val) < LDR_activation_threshold) {
+						if(parseInt(val) < thresholdArray[count]) {
 							//console.log("activating LDR " + count);
 							console.log("detected");
 							LDR_INDEX = count;
@@ -226,14 +242,14 @@
 					
 					// Interaction for height.
 					if(LDR_INDEX != null && ANIMATION_MODE == false) {
-						if(data_array[LDR_INDEX] > LDR_activation_threshold && data_array[LDR_INDEX] < 700) {
+						if(data_array[LDR_INDEX] > thresholdArray[LDR_INDEX] && data_array[LDR_INDEX] < 700) {
 							if(sc_heights[LDR_INDEX] <= 1) {
 								resetDetectedTime();
 								REVERSE_MODE = false;
 								console.log("heights going up " + sc_heights[LDR_INDEX]);
 								var sc_indices = getMappedShapeClipPosition(LDR_INDEX);
 								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
-								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) + parseFloat(0.01);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) + parseFloat(0.02);
 								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(3);
 								console.log(sc_heights[LDR_INDEX]);
 								//sc_indices_h = sc_heights[LDR_INDEX];
@@ -249,7 +265,7 @@
 								console.log("heights going down: " + sc_heights[LDR_INDEX]);
 								var sc_indices = getMappedShapeClipPosition(LDR_INDEX); 
 								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
-								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.01);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.03);
 								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(2);
 								console.log(sc_heights[LDR_INDEX]);
 								//sc_indices_h = sc_heights[LDR_INDEX];
@@ -878,6 +894,7 @@
 				<h1 class="calibration_heading">Calibration</h1>
 				<button id="blackmode" onclick="calibrate_black();">Black Mode</button>
 				<button id="whitemode" onclick="calibrate_white();">White Mode</button>
+				<button id="threshold" onclick="update_thresholds();">Update Threshold</button>
 			</div>
 			
 			<div id="weatherButtons" style="display: none;">
@@ -908,10 +925,10 @@
 				<button onclick="clearAnimation();">Clear Animation</button>
 				<br>
 				<div class="animation_speed_controls">
-					<button id="increase_speed" onclick="increaseCounter();">Increase Speed</button>
+					<button id="increase_speed" onclick="increaseCounter();">Increase Delay</button>
 					
-					<button id="decrease_speed" onclick="decreaseCounter();">Decrease Speed</button>
-					<div class="speed_label">Speed (in seconds):</div><div class="animation_speed">1</div>
+					<button id="decrease_speed" onclick="decreaseCounter();">Decrease Delay</button>
+					<div class="speed_label">Delay (in seconds):</div><div class="animation_speed">1</div>
 					<div style="clear:both"></div>
 					<div class="saved_frames_label">Saved frames:</div><div class="saved_frames">0</div>
 				</div>
