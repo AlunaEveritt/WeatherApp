@@ -99,6 +99,33 @@
 			
 			var COLOUR_POSITION=0;
 			
+			function getFriendlyColourName(index){
+				var colour="blank";
+				switch(index) {
+					case 0:
+						colour="blue";
+						break;
+					case 1:
+						colour="red";
+						break;
+					case 2:
+						colour="green";
+						break;
+					case 3:
+						colour="purple";
+						break;
+					case 4:
+						colour="yellow";
+						break;
+					case 5:
+						colour="white";
+						break;
+					default:
+					"";
+				}
+				return colour;
+			}
+			
 			function logDetectedTime(ldr_index) {
 				if(DETECTED == false) {
 					detectedTime = getTimeInMilliseconds();
@@ -136,7 +163,8 @@
 					//console.log("2 seconds in colour timer!");
 					COLOUR_POSITION++;
 					sc_colours[COLOUR_INDEX] = sc_colour[COLOUR_POSITION];
-					if(COLOUR_POSITION == 8) { COLOUR_POSITION = 0; }
+					comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"CHANGING SHAPECLIP "+COLOUR_INDEX+" COLOUR TO "+getFriendlyColourName(COLOUR_POSITION), Action_Type:"COLOUR_CHANGE", Timestamp:getTimeInMilliseconds()}));
+					if(COLOUR_POSITION == 6) { COLOUR_POSITION = 0; }
 					//update_thresholds();
 					update_thresholds();
 					resetDetectedColourTime();
@@ -255,6 +283,7 @@
 								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) + parseFloat(0.02);
 								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(3);
 								console.log(sc_heights[LDR_INDEX]);
+								comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"INCREASING HEIGHT OF SHAPECLIP "+LDR_INDEX+" TO "+sc_heights[LDR_INDEX], Action_Type:"HEIGHT_CHANGE", Timestamp:getTimeInMilliseconds()}));
 								//sc_indices_h = sc_heights[LDR_INDEX];
 							} 
 							else { }
@@ -273,6 +302,7 @@
 								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) - parseFloat(0.01);
 								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(2);
 								console.log(sc_heights[LDR_INDEX]);
+								comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"DECREASING HEIGHT OF SHAPECLIP "+LDR_INDEX+" TO "+sc_heights[LDR_INDEX], Action_Type:"HEIGHT_CHANGE", Timestamp:getTimeInMilliseconds()}));
 								//sc_indices_h = sc_heights[LDR_INDEX];
 							} 
 							else { REVERSE_MODE = false; }
@@ -324,6 +354,8 @@
 				var colorarray = canvasFrame.getColours();
 				console.log("Colours: "+ colorarray[0]);
 				console.log("Heights: "+ canvasFrame.getHeights());
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"SAVE_FRAME", Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"FRAME_COUNT: "+canvasFrame.getHeights().length, Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 			}
 			
 			/** - Play Animation - **/
@@ -336,16 +368,18 @@
 				ANIMATION_SPEED = $('div.animation_speed').html();
 				ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
 				startAnimationCycle();
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"PLAY_ANIMATION", Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 			}
 			
 			function clearAnimation() {
-				
 				canvasFrame.reset();
 				$('div.saved_frames').html(canvasFrame.getHeights().length);
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"CLEAR_ANIMATION", Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 			}
 			
 			function stopCanvasAnimation() {
 				ANIMATION_MODE = false;
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"STOP_ANIMATION", Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 			}
 			
 			/** - Animation Speed Decrease - **/
@@ -359,6 +393,7 @@
 					ANIMATION_SPEED--;
 					$('div.animation_speed').html(ANIMATION_SPEED);
 					ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+					comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"DECREASE DELAY TO: "+parseInt(ANIMATION_SPEED/1000), Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 				}
 			};
 			
@@ -373,6 +408,7 @@
 					ANIMATION_SPEED++;
 					$('div.animation_speed').html(ANIMATION_SPEED);
 					ANIMATION_SPEED = parseInt(ANIMATION_SPEED*1000);
+					comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"INCREASE DELAY TO: "+parseInt(ANIMATION_SPEED/1000), Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 				}
 			};
 			
@@ -878,7 +914,7 @@
 				document.getElementById("animationMode").style.display = "none";
 			}
 			
-			function addButtonTouchFunctions() {
+			/*function addButtonTouchFunctions() {
 				$('button#blackmode').on('click', function() {
 					calibrate_black();
 				});
@@ -886,9 +922,8 @@
 					calibrate_white();
 				});
 			}
-			
-			
-			addButtonTouchFunctions();
+
+			addButtonTouchFunctions();*/
 		</script>
 		
 	</head>
@@ -899,7 +934,8 @@
 				<h1 class="calibration_heading">Calibration</h1>
 				<button id="blackmode" onclick="calibrate_black();">Black Mode</button>
 				<button id="whitemode" onclick="calibrate_white();">White Mode</button>
-				<button id="threshold" onclick="update_thresholds();">Update Threshold</button>
+				<button id="threshold" onclick="update_thresholds();">Update Threshold</button><br>
+				<label id="pnum">Participant #</label> <input type="text" value="0"  id="pnum_text"></input>
 			</div>
 			
 			<div id="weatherButtons" style="display: none;">

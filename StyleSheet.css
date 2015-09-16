@@ -36,13 +36,13 @@ button {
 	top: 10px;
 	bottom:10px;
 }
-
+/*
 input {
 	position: relative;
 	left: 65%;
 	top: 50px;
 }
-
+*/
 h1.calibration_heading, h1.weather_heading, h1.animation_heading {
 	font-family:arial;
 	font-size:20px;
@@ -109,5 +109,18 @@ h1.calibration_heading, h1.weather_heading, h1.animation_heading {
     margin-left: 10px;
     font-size: 1.6em;
 	font-family:arial;
+}
+label#pnum {
+	margin-top:20px;
+	font-size: 1.4em;
+	font-family:arial;
+	display:inline-block;
+	margin-left:20px;
+}
+input#pnum_text{
+	padding:5px;
+	width:30px;
+	position:relative;
+	bottom:2px;
 }
 
