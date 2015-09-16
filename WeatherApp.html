@@ -33,6 +33,7 @@
 			var LDR_activation_percentage = 0.62;
 			var colour_activation_percentage = 1.1;
 			var reverse_increment = 1.1;
+			var colour_reverse_increment = 1.2;
 			
 			// LED colour list: 
 			/**					Blue	  	 Red		 Green		  Purple		 Yellow			White   		No Colour*/
@@ -49,6 +50,7 @@
 			var LOCKED = false;
 			var sc_heights=[];
 			var sc_colours=[];
+			var colour_activated=[];
 			
 			var thresholdArray=[];
 			var UPDATE_THRESHOLDS=false;
@@ -164,7 +166,10 @@
 					COLOUR_POSITION++;
 					sc_colours[COLOUR_INDEX] = sc_colour[COLOUR_POSITION];
 					comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"CHANGING SHAPECLIP "+COLOUR_INDEX+" COLOUR TO "+getFriendlyColourName(COLOUR_POSITION), Action_Type:"COLOUR_CHANGE", Timestamp:getTimeInMilliseconds()}));
-					if(COLOUR_POSITION == 6) { COLOUR_POSITION = 0; }
+					if(COLOUR_POSITION == 6) { 
+						colour_activated[COLOUR_INDEX] = false; 
+						COLOUR_POSITION = 0; 
+					}
 					//update_thresholds();
 					update_thresholds();
 					resetDetectedColourTime();
@@ -220,10 +225,10 @@
 			}
 			/** *** End pushing down ShapeClips *** */
 			
+			/** Update the touch detection thresholds to change height. */
 			function update_thresholds() {
 				UPDATE_THRESHOLDS = true;
 			}
-			
 			
 
 			// Try to connect to the websocket server.
@@ -233,6 +238,7 @@
 				for(var i=0; i<16; i++) {
 					sc_heights.push(0);
 					sc_colours.push([0,0,0]);
+					colour_activated.push(false);
 					thresholdArray.push(LDR_activation_threshold);
 				}
 				
@@ -258,11 +264,17 @@
 					
 					data_array.map(function(val) {
 						// For height.
-						if(parseInt(val) < parseInt(thresholdArray[count]*reverse_increment)) {
-							//console.log("activating LDR " + count);
-							console.log("detected");
-							LDR_INDEX = count;
-							
+						if(colour_activated[count] == true) {
+							if(parseInt(val) < parseInt(thresholdArray[count]*colour_reverse_increment)) {
+								console.log("detected");
+								LDR_INDEX = count;	
+							}
+						}
+						else {
+							if(parseInt(val) < parseInt(thresholdArray[count]*reverse_increment)) {
+								console.log("detected");
+								LDR_INDEX = count;	
+							}
 						}
 						// For colour.
 						if(val > LDR_colour_activation){
@@ -315,6 +327,7 @@
 							var sc_indices = getMappedShapeClipPosition(COLOUR_INDEX);
 							startColourTimer(COLOUR_INDEX);
 							console.log(JSON.stringify(sc_colours));
+							colour_activated[COLOUR_INDEX] = true;
 							pads[sc_indices[0]][sc_indices[1]].colour(sc_colours[COLOUR_INDEX]);
 							//sc_indices_c = sc_colour[COLOUR_POSITION];
 						}
