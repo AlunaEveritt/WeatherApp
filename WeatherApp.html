@@ -32,8 +32,8 @@
 			
 			var LDR_activation_percentage = 0.62;
 			var colour_activation_percentage = 1.1;
-			var reverse_increment = 1.1;
-			var colour_reverse_increment = 1.2;
+			var reverse_increment = 1;
+			var colour_reverse_increment = 1.26;
 			
 			// LED colour list: 
 			/**					Blue	  	 Red		 Green		  Purple		 Yellow			White   		No Colour*/
@@ -163,19 +163,27 @@
 				var currentTime = getTimeInMilliseconds();
 				if(COLOUR_TIMER_DETECTED == true && parseInt(currentTime - colour_detectedTime) > 2000) {
 					//console.log("2 seconds in colour timer!");
-					COLOUR_POSITION++;
+					
+					if(COLOUR_POSITION == 7) { COLOUR_POSITION=0;}
 					sc_colours[COLOUR_INDEX] = sc_colour[COLOUR_POSITION];
+					var sc_indices = getMappedShapeClipPosition(COLOUR_INDEX);
+					pads[sc_indices[0]][sc_indices[1]].colour(sc_colours[COLOUR_INDEX]);
+					console.log(JSON.stringify(sc_colour[COLOUR_POSITION]));
 					comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"CHANGING SHAPECLIP "+COLOUR_INDEX+" COLOUR TO "+getFriendlyColourName(COLOUR_POSITION), Action_Type:"COLOUR_CHANGE", Timestamp:getTimeInMilliseconds()}));
+					console.log("colour " + COLOUR_POSITION);
 					if(COLOUR_POSITION == 6) { 
+						console.log("deactivating colour " + COLOUR_INDEX);
 						colour_activated[COLOUR_INDEX] = false; 
-						COLOUR_POSITION = 0; 
+					} else {
+						colour_activated[COLOUR_INDEX] = true; 
 					}
+					COLOUR_POSITION++;
 					//update_thresholds();
 					update_thresholds();
 					resetDetectedColourTime();
 				}
 				else {
-					setTimeout(startColourCycle, 1000);
+					setTimeout(startColourCycle, 500);
 				}
 			}
 			/** *** End Colour timer functions  ***.*/
@@ -259,14 +267,14 @@
 						data_array.map(function(val) {
 							thresholdArray.push(parseInt(val*LDR_activation_percentage));
 						});
-						console.log("Setting new thresholds: " + JSON.stringify(thresholdArray));
+						//console.log("Setting new thresholds: " + JSON.stringify(thresholdArray));
 					}
 					
 					data_array.map(function(val) {
 						// For height.
 						if(colour_activated[count] == true) {
 							if(parseInt(val) < parseInt(thresholdArray[count]*colour_reverse_increment)) {
-								console.log("detected");
+								console.log("colour mode detected");
 								LDR_INDEX = count;	
 							}
 						}
@@ -283,9 +291,11 @@
 						count++;
 					});
 					
+					//console.log(JSON.stringify(colour_activated));
+					
 					// Interaction for height.
 					if(LDR_INDEX != null && ANIMATION_MODE == false) {
-						if(data_array[LDR_INDEX] > thresholdArray[LDR_INDEX] && data_array[LDR_INDEX] < 700) {
+						if(data_array[LDR_INDEX] > thresholdArray[LDR_INDEX] && data_array[LDR_INDEX] < 450 && colour_activated[LDR_INDEX] == false) {
 							if(sc_heights[LDR_INDEX] <= 1) {
 								resetDetectedTime();
 								REVERSE_MODE = false;
@@ -300,12 +310,32 @@
 							} 
 							else { }
 						} 
-						else if(data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*reverse_increment)) {
+						else if(data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*reverse_increment) && colour_activated[LDR_INDEX] == false) {
 							logDetectedTime(LDR_INDEX);
 						}
-						console.log("thresholds: " + JSON.stringify(thresholdArray));
-						console.log("---" + parseInt(thresholdArray[LDR_INDEX]*reverse_increment));
-						console.log("reverse mode: " + REVERSE_MODE);
+						if(data_array[LDR_INDEX] > thresholdArray[LDR_INDEX] && data_array[LDR_INDEX] < 450 && colour_activated[LDR_INDEX] == true) {
+							if(sc_heights[LDR_INDEX] <= 1) {
+								resetDetectedTime();
+								logDetectedTime(LDR_INDEX);
+								//REVERSE_MODE = false;
+								console.log("heights going up " + sc_heights[LDR_INDEX]);
+								var sc_indices = getMappedShapeClipPosition(LDR_INDEX);
+								pads[sc_indices[0]][sc_indices[1]].height(sc_heights[LDR_INDEX]);
+								sc_heights[LDR_INDEX] = parseFloat(sc_heights[LDR_INDEX]) + parseFloat(0.02);
+								sc_heights[LDR_INDEX] = sc_heights[LDR_INDEX].toFixed(3);
+								console.log(sc_heights[LDR_INDEX]);
+								comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"INCREASING HEIGHT OF SHAPECLIP "+LDR_INDEX+" TO "+sc_heights[LDR_INDEX], Action_Type:"HEIGHT_CHANGE", Timestamp:getTimeInMilliseconds()}));
+								//sc_indices_h = sc_heights[LDR_INDEX];
+							} 
+							else { }
+						} 
+						else if(data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*colour_reverse_increment) && colour_activated[LDR_INDEX] == true) {
+							logDetectedTime(LDR_INDEX);
+						}
+						
+						//console.log("thresholds: " + JSON.stringify(thresholdArray));
+						//console.log("---" + parseInt(thresholdArray[LDR_INDEX]*reverse_increment));
+						//console.log("reverse mode: " + REVERSE_MODE);
 						if(REVERSE_MODE == true) {
 							if(sc_heights[LDR_INDEX] >= 0 && data_array[LDR_INDEX] < parseInt(thresholdArray[LDR_INDEX]*reverse_increment)) {
 								console.log("heights going down: " + sc_heights[LDR_INDEX]);
@@ -323,12 +353,12 @@
 					// Interaction for colour - using light.
 					if(COLOUR_INDEX != null && ANIMATION_MODE == false){
 						if(data_array[COLOUR_INDEX] > LDR_colour_activation){
-							console.log("In colour mode");
-							var sc_indices = getMappedShapeClipPosition(COLOUR_INDEX);
+							//console.log("In colour mode");
+							
 							startColourTimer(COLOUR_INDEX);
-							console.log(JSON.stringify(sc_colours));
-							colour_activated[COLOUR_INDEX] = true;
-							pads[sc_indices[0]][sc_indices[1]].colour(sc_colours[COLOUR_INDEX]);
+							//console.log(JSON.stringify(sc_colours));
+							//colour_activated[COLOUR_INDEX] = true;
+							
 							//sc_indices_c = sc_colour[COLOUR_POSITION];
 						}
 					}
@@ -337,6 +367,20 @@
 					LDR_VALUE_STRING = data;
 				});
 			});
+			
+			function reset_colour() {
+				for(var i=0; i<16; i++) {
+					sc_colours.push([0,0,0]);
+					colour_activated.push(false);
+				}
+				for (var row=0; row<pads.length; ++row){
+					for (var col=0; col<pads[row].length; ++col){
+						pads[row][col].colour(0,0,0);
+					}
+				}
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"RESETTING ALL COLOURS", Action_Type:"COLOUR_CHANGE", Timestamp:getTimeInMilliseconds()}));
+				update_thresholds();
+			}
 			
 			/** Animation Features - Faisal**/
 			function canvasFrame() {
@@ -357,18 +401,45 @@
 				}
 			}
 			
+			function prepareCSVArray(arr) {
+				var myarray = arr.slice(0);
+				var arraystring="";
+				for(var i=0; i<myarray.length; i++) {
+					arraystring+=myarray[i];
+					if(i != myarray.length-1) arraystring+=";";
+				}
+				return arraystring;
+			}
+			function prepareCSVArrayColour(arr) {
+				var myarray = arr;
+				var arraystring="";
+				for(var i=0; i<myarray.length; i++) {
+					arraystring+="[";
+					for (var j=0; j<myarray[i].length; j++) {
+						arraystring+=myarray[i][j];
+						if(j!=myarray[i].length-1) arraystring+=";";
+					}
+					arraystring+="]";
+					if(i != myarray.length-1) arraystring+=";";
+				}
+				return arraystring;
+			}
+			
+			
 			/** Gets arrays with colour and height values **/
 			function generateFrame() {
 				canvasFrame.saveColours(sc_colours);
 				canvasFrame.saveHeights(sc_heights);
-				
+								
 				$('div.saved_frames').html(canvasFrame.getHeights().length);
-				
+								
 				var colorarray = canvasFrame.getColours();
 				console.log("Colours: "+ colorarray[0]);
 				console.log("Heights: "+ canvasFrame.getHeights());
 				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"SAVE_FRAME", Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
 				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"FRAME_COUNT: "+canvasFrame.getHeights().length, Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
+				comms.emit("ACTION_LOG", JSON.stringify({Participant:$('input#pnum_text').val(), Action_Name:"FRAME HEIGHTS: "+prepareCSVArray(sc_heights)+" | FRAME COLOURS: "+prepareCSVArrayColour(sc_colours), Action_Type:"ANIMATION", Timestamp:getTimeInMilliseconds()}));
+				
 			}
 			
 			/** - Play Animation - **/
@@ -495,8 +566,8 @@
 			 */
 			var weather = {
 				"ClearSky" : {
-					"colourFiles" : ["images/ClearSky_colour.bmp"],
-					"heightFiles" : ["images/ClearSky_height.bmp"],
+					"colourFiles" : ["images/Demo_Image_Colour_01.bmp"],
+					"heightFiles" : ["images/Demo_Image_Height_01.bmp"],
 					"animationSpeed" : -1, // -1 disables animation.
 				},
 				"FewClouds" : {
@@ -804,23 +875,30 @@
 			/** Calibrate motor - black - bottom. */
 			function calibrate_black(){
 			
-				for (var row=0; row<pads.length; ++row)
-					for (var col=0; col<pads[row].length; ++col)
+				for (var row=0; row<pads.length; ++row) {
+					for (var col=0; col<pads[row].length; ++col) {
 						pads[row][col]._ldr1(0) && pads[row][col].height(0);
+					}
+				}
 					
-				
+				for(var i=0; i<16; i++) {
+					sc_heights.push(0);
+				}
+				update_thresholds();
 			}
 			
 			/** Calibrate motor - white - top. */
 			function calibrate_white(){
 				
-				for (var row=0; row<pads.length; ++row)
-					for (var col=0; col<pads[row].length; ++col)
+				for (var row=0; row<pads.length; ++row) {
+					for (var col=0; col<pads[row].length; ++col){
 					//	pads[row][col].height(0) &&	pads[row][col]._ldr1(0);
 						pads[row][col].height(1) &&	pads[row][col]._ldr1(1);
-						
-					
-				
+					}
+				}
+				for(var i=0; i<16; i++) {
+					sc_heights.push(1);
+				}
 			}
 			
 			/** NEED TO PUT THIS IN SEPARATE FILE - WeatherData*/
@@ -834,7 +912,7 @@
 			
 			/** Fetch initial wind data from API. */
 			
-			$.getJSON("http://api.openweathermap.org/data/2.5/weather?q=Lancaster,UK",function(results) {
+			$.getJSON("http://api.openweathermap.org/data/2.5/weather?q=lancaster?id=524901&APPID=104443b81d3dcf12ae7ec86e92f53dca",function(results) {
 			
 				/** Wind Results - direction. */
 				wind_dir = results.wind.deg;
@@ -947,6 +1025,7 @@
 				<h1 class="calibration_heading">Calibration</h1>
 				<button id="blackmode" onclick="calibrate_black();">Black Mode</button>
 				<button id="whitemode" onclick="calibrate_white();">White Mode</button>
+				<button id="reset_colour" onclick="reset_colour();">Reset Colour</button>
 				<button id="threshold" onclick="update_thresholds();">Update Threshold</button><br>
 				<label id="pnum">Participant #</label> <input type="text" value="0"  id="pnum_text"></input>
 			</div>
